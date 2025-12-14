@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Universal Math Solver</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script src="https://cdn.jsdelivr.net/npm/mathjs@11.11.0/lib/browser/math.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+
+<style>
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: Arial, sans-serif;
+  background: #020617;
+  color: #e5e7eb;
+}
+
+/* ===== CANVAS BACKGROUND ===== */
+canvas {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: -1;
+}
+
+/* ===== RGB TRIANGLES ===== */
+.triangles {
+  position: fixed;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 18px;
+  z-index: 5;
+}
+
+.tri {
+  width: 0;
+  height: 0;
+  border-left: 18px solid transparent;
+  border-right: 18px solid transparent;
+  border-bottom: 30px solid red;
+  animation: triMove 1.5s infinite;
+}
+
+.tri:nth-child(2) { animation-delay: 0.3s; }
+.tri:nth-child(3) { animation-delay: 0.6s; }
+
+@keyframes triMove {
+  0% { border-bottom-color: red; transform: translateY(0); }
+  33% { border-bottom-color: orange; }
+  66% { border-bottom-color: lime; }
+  100% { border-bottom-color: cyan; transform: translateY(-8px); }
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.box {
+  background: rgba(2,6,23,0.9);
+  padding: 22px;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 520px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 0 30px rgba(56,189,248,0.3);
+}
+
+h1 {
+  text-align: center;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 32px;
+  margin-bottom: 10px;
+  background: linear-gradient(90deg, red, orange, yellow, lime, cyan, blue, violet);
+  background-size: 400% 400%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rgbText 6s linear infinite;
+}
+
+@keyframes rgbText {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+
+p { text-align: center; }
+
+input, button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 12px;
+  border-radius: 10px;
+  border: none;
+  font-size: 16px;
+}
+
+input {
+  background: #020617;
+  color: #fff;
+  border: 1px solid #334155;
+}
+
+button.solve {
+  margin-top: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  background: #020617;
+  color: #fff;
+  border: 2px solid transparent;
+  background-image:
+    linear-gradient(#020617,#020617),
+    linear-gradient(90deg, red, orange, yellow, lime, cyan, blue, violet);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
+.result {
+  margin-top: 15px;
+  background: #020617;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  min-height: 48px;
+}
+
+button.clear {
+  margin-top: 10px;
+  font-weight: bold;
+  background: transparent;
+  border: 2px solid #38bdf8;
+  color: white;
+  cursor: pointer;
+}
+
+.hint {
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(220,38,38,0.15);
+  border: 1px solid #dc2626;
+  font-size: 13px;
+}
+
+/* ===== CREDIT ===== */
+.credit {
+  margin-top: 18px;
+  text-align: center;
+  padding: 10px;
+  border-radius: 30px;
+  border: 2px solid #00ff88;
+  font-size: 14px;
+  animation: creditGlow 2s infinite alternate;
+}
+
+@keyframes creditGlow {
+  0% {
+    color: #00ff88;
+    border-color: #00ff88;
+    box-shadow: 0 0 10px #00ff88;
+  }
+  100% {
+    color: #ff0000;
+    border-color: #ff0000;
+    box-shadow: 0 0 10px #ff0000;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<!-- RGB TRIANGLES -->
+<div class="triangles">
+  <div class="tri"></div>
+  <div class="tri"></div>
+  <div class="tri"></div>
+</div>
+
+<canvas id="bg"></canvas>
+<div class="overlay"></div>
+
+<div class="box">
+  <h1>Math Solve</h1>
+  <p>Enter any math expression:</p>
+
+  <input id="expression" placeholder="ex: √(49+√(121+√36))">
+  <button class="solve" id="solveBtn">Solve</button>
+
+  <div class="result" id="output">Result will appear here</div>
+  <button class="clear" id="clearBtn">Clear</button>
+
+  <div class="hint">
+    <b>⚡ API update වීම නිසා maths error ආ හැකිය ⭕</b>
+  </div>
+
+  <div class="credit">
+    Credit by <b>DTz shAnuwa</b>
+  </div>
+</div>
+
+<script>
+/* ===== BACKGROUND BLOBS ===== */
+const canvas = document.getElementById("bg");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+}
+resize();
+addEventListener("resize", resize);
+
+const colors = ["#ff0000","#00ffff","#00ff88","#ffff00","#ff00ff"];
+const blobs = [];
+
+for (let i = 0; i < 25; i++) {
+  blobs.push({
+    x: Math.random()*innerWidth,
+    y: Math.random()*innerHeight,
+    r: 60 + Math.random()*80,
+    vx: (Math.random()-0.5)*0.4,
+    vy: (Math.random()-0.5)*0.4,
+    c: colors[Math.floor(Math.random()*colors.length)]
+  });
+}
+
+function animateBg() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  blobs.forEach(b => {
+    b.x += b.vx;
+    b.y += b.vy;
+    if (b.x < 0 || b.x > canvas.width) b.vx *= -1;
+    if (b.y < 0 || b.y > canvas.height) b.vy *= -1;
+    ctx.beginPath();
+    ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+    ctx.fillStyle = b.c;
+    ctx.globalAlpha = 0.15;
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+  requestAnimationFrame(animateBg);
+}
+animateBg();
+
+/* ===== MATH SOLVER ===== */
+const btn = document.getElementById("solveBtn");
+const clearBtn = document.getElementById("clearBtn");
+const input = document.getElementById("expression");
+const output = document.getElementById("output");
+
+function normalize(expr) {
+  return expr
+    .replace(/²/g,"^2")
+    .replace(/³/g,"^3")
+    .replace(/√\s*\(/g,"sqrt(")
+    .replace(/√\s*([0-9a-zA-Z]+)/g,"sqrt($1)")
+    .replace(/(\d)(sqrt|\()/g,"$1*$2");
+}
+
+btn.onclick = () => {
+  try {
+    output.innerHTML = "<b>Answer:</b><br>" +
+      math.evaluate(normalize(input.value));
+  } catch {
+    output.innerHTML = "<span style='color:red'>Invalid math format</span>";
+  }
+};
+
+clearBtn.onclick = () => {
+  input.value = "";
+  output.innerHTML = "Result will appear here";
+};
+</script>
+
+</body>
+</html>
